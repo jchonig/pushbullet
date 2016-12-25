@@ -1,0 +1,331 @@
+#!/usr/bin/env python
+"""
+Send a notification via pushbullet
+"""
+
+from __future__ import print_function
+import argparse
+import json
+import netrc
+from mimetypes import MimeTypes
+import os
+import re
+import sys
+
+# TODO
+# XXX - Clean up verbose and debugging
+
+"""
+MIT License
+
+Copyright (c) 2016 Jeffrey C Honig
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
+# We need requests, but it might not be installed
+try:
+    import requests
+except:
+    print("Python requests library is required to run this script")
+    sys.exit(1)
+
+# Pushbullet API URLs
+CHANNELS_URL = 'https://api.pushbullet.com/v2/subscriptions'
+DEVICES_URL = 'https://api.pushbullet.com/api/devices'
+PUSH_URL = 'https://api.pushbullet.com/api/pushes'
+UPLOAD_URL = 'https://api.pushbullet.com/v2/upload-request'
+
+# Quick check for an IP address
+EMAIL_RE = re.compile(r'^[^@]+@[^@]+\.[^@]+$')
+
+def parse_args():
+    """ What do we need to do """
+
+    parser = argparse.ArgumentParser(description="Send pushbullet messages")
+
+    #	Debugging
+    group = parser.add_argument_group("Debugging options")
+    group.add_argument("-d", "--debug",
+                       dest="debug", default=False,
+                       action='store_true',
+                       help="print debugging messages")
+    group.add_argument("--nodebug",
+                       dest="debug",
+                       action='store_false',
+                       help="print debugging messages")
+    group.add_argument("-v", "--verbose",
+                       dest="verbose", default=False,
+                       action='store_true',
+                       help="print verbose messages")
+    group.add_argument("-n", "--noop",
+                       dest="noop", default=False,
+                       action='store_true',
+                       help="Don't send notifications, just list what we are going to do")
+
+    #	Mode
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--note", nargs="+",
+                       help="Send a note")
+    group.add_argument("--file", nargs=1,
+                       type=argparse.FileType('rb'),
+                       help="Send a file")
+    group.add_argument("--link", nargs=1,
+                       help="Send a link")
+    group.add_argument("--devices",
+                       action='store_true',
+                       help="List available devices")
+    group.add_argument("--channels",
+                       action='store_true',
+                       help="List available channels")
+
+    group = parser.add_argument_group("Mode parameters")
+    group.add_argument("--title", nargs=1,
+                       dest="title", default=None,
+                       help="Specify the title")
+
+    group = parser.add_argument_group("Destination parameters")
+    group.add_argument("--api-key", nargs=1,
+                       dest="api_key",
+                       help="Specify the Pushbullet API key")
+    group.add_argument("--dest", nargs="+",
+                       dest="dest",
+                       action="append",
+                       help="Destination, one of 'all', e-mail, device name, nickname or iden")
+
+    # Parse args
+    options = parser.parse_args()
+
+    # --test implies --verbose
+    if options.noop:
+        options.verbose = True
+
+    return (parser, options)
+
+def get_devices(options):
+    """Get a list of devices on the account"""
+    dev_list = dict()
+
+    resp = requests.get(DEVICES_URL, auth=(options.api_key, None))
+    if resp.status_code != requests.codes.ok:
+        print("Getting Devices: %s" % resp.status_code)
+        return None
+    devices = json.loads(resp.content)
+    for device in devices['devices']:
+        if device['extras'].has_key('nickname'):
+            name = device['extras']['nickname']
+        else:
+            name = device['extras']['model']
+        dev_list[name] = device['iden']
+
+    if options.debug:
+        for device in dev_list.keys():
+            print("DEV %s: %s" % (device, dev_list[device]))
+
+    return dev_list
+
+def get_channels(options):
+    """Get a list of channels we are subscribed to"""
+    channel_list = dict()
+
+    resp = requests.get(CHANNELS_URL, auth=(options.api_key, None))
+    if resp.status_code != requests.codes.ok:
+        print("Getting Channels: %s" % resp.status_code)
+        return None
+    subs = json.loads(resp.content)
+    for sub in subs['subscriptions']:
+        if not sub['active']:
+            continue
+        channel = sub['channel']
+        if not channel.has_key(u'website_url'):
+            name = channel['tag']
+            channel_list[name] = channel['iden']
+
+    if options.debug:
+        for channel in channel_list.keys():
+            print("CHAN %s: %s" % (channel, channel_list[channel]))
+
+    return channel_list
+
+def push(options, targets, payload):
+    """ Main push routine"""
+    if options.debug:
+        print("Push: %s" % payload)
+
+    for target in targets:
+        payload[target[0]] = target[1]
+        if options.debug:
+            print("Push: %s" % payload)
+        resp = requests.post(PUSH_URL, auth=(options.api_key, None), data=payload)
+        if options.debug:
+            print("Response: %s" % resp.content)
+        if resp.status_code != requests.codes.ok:
+            print("%s: %s" % (resp.status_code, resp.content))
+
+        payload.pop(target[0])
+
+def push_note(options, targets, body):
+    """ Push a note"""
+    payload = {'type': 'note',
+               'body': body}
+
+    if options.title:
+        payload['title'] = options.title
+
+    push(options, targets, payload)
+
+def push_link(options, targets, url):
+    """Push a URL"""
+    payload = {'type': 'link',
+               'url': url}
+
+    if options.title:
+        payload['title'] = options.title
+
+    push(options, targets, payload)
+
+def push_file(options, targets, filep):
+    """ Push a file"""
+    payload = {}
+    payload['file_name'] = os.path.basename(filep.name)
+    mime = MimeTypes()
+    payload['file_type'] = mime.guess_type(filep.name)
+
+    # Get permission to upload a file
+    if options.debug:
+        print("Push: %s" % payload)
+    resp = requests.post(UPLOAD_URL, auth=(options.api_key, None), data=payload)
+    if options.debug:
+        print("Response: %s" % resp.content)
+    if resp.status_code != requests.codes.ok:
+        print("%s: %s" % (resp.status_code, resp.content))
+        return
+
+    # Upload the file
+    data = resp.json()
+    resp = requests.post(data["upload_url"], auth=(options.api_key, None), files={'file': filep})
+    if options.debug:
+        print("Response: %s" % resp.content)
+    if resp.status_code != requests.codes.ok and resp.status_code != 204:
+        print("%s: %s" % (resp.status_code, resp.content))
+
+    # Push the file
+    payload['type'] = 'file'
+    payload['file_url'] = data['file_url']
+    if options.title:
+        payload['body'] = options.title
+    else:
+        payload['body'] = payload['file_name']
+    push(options, targets, payload)
+
+def get_auth(parser, options):
+    """Get Authentication"""
+    if not options.api_key:
+        try:
+            authenticators = netrc.netrc().authenticators("pushbullet.com")
+        except IOError:
+            parser.error("Please ensure that you have a .netrc file and an entry for %s with your username and password" % "pushpullet.com")
+        if authenticators:
+            (user, account, options.api_key) = authenticators
+        if options.debug:
+            print("Using API KEY %s from .netrc" % options.api_key)
+        if not options.dest:
+            options.dest = [user]
+        if options.debug:
+            print("Using default dest %s from .netrc" % options.dest)
+
+    if not options.api_key:
+        parser.error("Specify an API KEY on the command line or in your .netrc")
+
+def get_dests(parser, options):
+    """Figure out our destinations"""
+    dests = list()
+    if not options.dest or options.dest == "all":
+        dests = get_devices(options).values()
+    else:
+        devices = None
+        channels = None
+
+        for dest in options.dest:
+            if EMAIL_RE.search(dest):
+                dests.append(['target_email', dest])
+                continue
+
+            # Make sure we have the devices list
+            if not devices:
+                devices = get_devices(options)
+
+            # Accept device name or nickname
+            if devices.has_key(dest):
+                dests.append(['device_iden', devices[dest]])
+                continue
+
+            # Accept the device identifier
+            if dest in devices.values():
+                dests.append(['device_iden', dest])
+                continue
+
+            if not channels:
+                channels = get_channels(options)
+
+            if channels.has_key(dest):
+                dests.append(['channel_tag', dest])
+                continue
+
+            if dest in channels.values():
+                dests.append(['channel_iden', dest])
+                continue
+
+            parser.error("Unrecognized destination: %s" % dest)
+
+    return dests
+
+def main():
+    """It all happens here"""
+    (parser, options) = parse_args()
+
+    # Get authentication from .netrc
+    get_auth(parser, options)
+
+    # Figure out our destinations
+    dests = get_dests(parser, options)
+
+    if options.devices:
+        devices = get_devices(options)
+        print("Devices:")
+        for dev in devices.keys():
+            print("\t%s: %s" % (dev, devices[dev]))
+    elif options.channels:
+        channels = get_channels(options)
+        print("Channels:")
+        for chan in channels.keys():
+            print("\t%s: %s" % (chan, channels[chan]))
+    elif options.note:
+        push_note(options, dests, " ".join(options.note))
+    elif options.link:
+        push_link(options, dests, options.link)
+    elif options.file:
+        push_file(options, dests, options.file[0])
+    else:
+        parser.error("No mode specified!")
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+

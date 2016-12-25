@@ -22,8 +22,9 @@ Pushbullet [Account Settings](https://www.pushbullet.com/#settings/account) page
 Specify the API Key on the command line as *--api-key <API_KEY>* or
 add it to your _${HOME}/.netrc_:
 
-
-  _machine pushbullet.com login **EMAIL** password **API_KEY**_
+```shell
+    machine pushbullet.com login EMAIL password API_KEY
+```
 
 One advantage of using a .netrc entry is that the login field in the
 pushbullet.com entry will be used as the default destination.

@@ -22,6 +22,7 @@ Pushbullet [Account Settings](https://www.pushbullet.com/#settings/account) page
 Specify the API Key on the command line as *--api-key <API_KEY>* or
 add it to your _${HOME}/.netrc_:
 
+
   _machine pushbullet.com login **EMAIL** password **API_KEY**_
 
 One advantage of using a .netrc entry is that the login field in the
@@ -39,14 +40,14 @@ You can only push to your private channels.
 
 To list all your devices use
 
-```
-    # pushbullet --devices**
+```shell
+    # pushbullet --devices
 ```
 
 To list all your channels (including public channels you are
 subscribed to):
 
-```
+```shell
     # pushbullet --channels
 ```
 
@@ -56,25 +57,25 @@ Most of these examples assume your .netrc is set up
 
 ### Push a note to all your devices
 
-```
+```shell
     # pushbullet --title Hello --note World
 ```
 
 ### Push a note to your friend
 
-```
+```shell
     # pushbullet --dest my.friend@email.us --title Hello --note World
 ```
 
 ### Push a file to a specific device
 
-```
+```shell
     # pushbullet --dest 'Nexus 9' --title "A pretty picture" --file IMG0001.JPG
 ```
 
 ### Push a URL to a channel
 
-```
+```shell
     # pushbullet --dest mychannel --title "Look at this" --link "https://a.funny.url.com"
 ```
 

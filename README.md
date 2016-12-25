@@ -19,8 +19,8 @@ authenticate to Pushbullet.  It requires the use of an API key.
 You can obtain an API Key (sometimes known as an Access Token) on your
 Pushbullet [Account Settings](https://www.pushbullet.com/#settings/account) page.
 
-Specify the API Key on the command line as *--api-key <API_KEY>* or
-add it to your _${HOME}/.netrc_:
+Specify the API Key on the command line as `--api-key <API_KEY>` or
+add it to your `${HOME}/.netrc`:
 
 ```shell
     machine pushbullet.com login EMAIL password API_KEY

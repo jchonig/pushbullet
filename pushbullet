@@ -96,15 +96,15 @@ def parse_args():
                        help="List available channels")
 
     group = parser.add_argument_group("Mode parameters")
-    group.add_argument("--title", nargs=1,
+    group.add_argument("--title",
                        dest="title", default=None,
                        help="Specify the title")
 
     group = parser.add_argument_group("Destination parameters")
-    group.add_argument("--api-key", nargs=1,
+    group.add_argument("--api-key",
                        dest="api_key",
                        help="Specify the Pushbullet API key")
-    group.add_argument("--dest", nargs="+",
+    group.add_argument("--dest",
                        dest="dest",
                        action="append",
                        help="Destination, one of 'all', e-mail, device name, nickname or iden")

@@ -48,8 +48,8 @@ except:
 
 # Pushbullet API URLs
 CHANNELS_URL = 'https://api.pushbullet.com/v2/subscriptions'
-DEVICES_URL = 'https://api.pushbullet.com/api/devices'
-PUSH_URL = 'https://api.pushbullet.com/api/pushes'
+DEVICES_URL = 'https://api.pushbullet.com/v2/devices'
+PUSH_URL = 'https://api.pushbullet.com/v2/pushes'
 UPLOAD_URL = 'https://api.pushbullet.com/v2/upload-request'
 
 # Quick check for an IP address
@@ -128,10 +128,12 @@ def get_devices(options):
         return None
     devices = json.loads(resp.content)
     for device in devices['devices']:
-        if device['extras'].has_key('nickname'):
-            name = device['extras']['nickname']
+        if not device['active']:
+            continue
+        if device.has_key('nickname'):
+            name = device['nickname']
         else:
-            name = device['extras']['model']
+            name = device['model']
         dev_list[name] = device['iden']
 
     if options.debug:

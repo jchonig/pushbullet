@@ -42,14 +42,14 @@ You can only push to your private channels.
 To list all your devices use
 
 ```shell
-    # pushbullet --devices
+    # pushbullet list devices
 ```
 
 To list all your channels (including public channels you are
 subscribed to):
 
 ```shell
-    # pushbullet --channels
+    # pushbullet list channels
 ```
 
 ## Examples
@@ -80,7 +80,27 @@ Most of these examples assume your .netrc is set up
     # pushbullet --dest mychannel --title "Look at this" --link "https://a.funny.url.com"
 ```
 
-# Author
+## TODO
+
+### Make available as a library
+
+Make the object available as a python library and provide a cli script.
+
+### Devices
+
++ Print more details on devices
++ Allow rename of device
++ Allow update icon of device
+
+### Texts
+
++ Support texts
+
+### Encryption
+
++ Support encryption
+
+## Author
 
 Jeffrey C Honig <jch@honig.net>
 

@@ -157,6 +157,11 @@ class PushBullet:
 
         logging.debug("Push: %s", pprint.pformat(payload))
 
+        if not targets:
+            logging.debug("Pushing: %s", pprint.pformat(payload))
+            self._post(PUSH_URL, data=payload)
+            return
+
         for target in targets:
             payload[target[0]] = target[1]
             logging.debug("Pushing to %s: %s", target, pprint.pformat(payload))
@@ -213,37 +218,40 @@ class PushBullet:
     def get_dests(self):
         """Figure out our destinations"""
 
+        if not self._options.dest:
+            # use the default dest
+            return self._dest
+
+        # Convert destinations to what API wants
+
         dests = list()
-        if not self._options.dest or self._options.dest == "all":
+        # Make a list of destinations
+        for dest in self._options.dest:
+            if EMAIL_RE.search(dest):
+                dests.append(['email', dest])
+                continue
+
+            # Accept device name or nickname
+            if dest in self.devices:
+                dests.append(['device_iden', self.devices[dest]['iden']])
+                continue
+
+            # Accept the device identifier
             for device in self.devices.values():
-                dests.append(device['iden'])
-        else:
-            for dest in self._options.dest:
-                if EMAIL_RE.search(dest):
-                    dests.append(['target_email', dest])
+                if dest == device['iden']:
+                    dests.append(['device_iden', dest])
                     continue
 
-                # Accept device name or nickname
-                if dest in self.devices:
-                    dests.append(['device_iden', self.devices[dest]['iden']])
+            if dest in self.channels:
+                dests.append(['channel_tag', self.channels[dest]['iden']])
+                continue
+
+            for channel in self.channels.values():
+                if dest == channel['iden']:
+                    dests.append(['channel_iden', dest])
                     continue
 
-                # Accept the device identifier
-                for device in self.devices.values():
-                    if dest == device['iden']:
-                        dests.append(['device_iden', dest])
-                        continue
-
-                if dest in self.channels:
-                    dests.append(['channel_tag', self.channels[dest]['iden']])
-                    continue
-
-                for channel in self.channels.values():
-                    if dest == channel['iden']:
-                        dests.append(['channel_iden', dest])
-                        continue
-
-                self._parser.error("Unrecognized destination: %s" % dest)
+            self._parser.error("Unrecognized destination: %s" % dest)
 
         return dests
 
